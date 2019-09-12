@@ -1,0 +1,21 @@
+{
+  "presets": [["env", {
+      "targets": {
+        "node": "10"
+      }
+    }], "jest"],
+  "plugins": [
+    ["module-resolver", {
+      "alias": {
+        "common": "../common/src",
+        "libs": "./libs"
+      }
+    }],
+    ["transform-runtime", {
+      "polyfill": true,
+      "regenerator": true
+    }],
+    ["transform-object-rest-spread"],
+    ["source-map-support"],
+  ]
+}

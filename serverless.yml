@@ -1,0 +1,93 @@
+service:
+  name:                welcome-backend
+
+plugins:
+  # - serverless-webpack
+  - serverless-offline
+  - serverless-dynamodb-local
+  # Manual for now See https://github.com/leftclickben/serverless-api-stage/issues/2
+  # - serverless-api-stage
+
+custom:
+  serverless-offline:
+    port:                         4000
+  stageSettings:
+    CacheClusterEnabled: ${env:CACHE_BACKEND, 'false'}
+    CacheClusterSize: "0.5"
+    MethodSettings:
+      - ResourcePath: "/*"
+        HttpMethod: "*"
+        CachingEnabled: false
+      - ResourcePath: /api~1booli~1sold
+        HttpMethod: "*"
+        CacheDataEncrypted: true
+        CacheTtlInSeconds: 300 #${self:provider.environment.API_GATEWAY_CACHE_TTL}
+        CachingEnabled: true
+      - ResourcePath: /api~1google-distance~1areas
+        HttpMethod: "*"
+        CacheDataEncrypted: true
+        CacheTtlInSeconds: 300 #${self:provider.environment.API_GATEWAY_CACHE_TTL}
+        CachingEnabled: true
+  EBBackendUrl:                   ${env:EB_URL, 'http://eb-cont-welcome.eu-west-1.elasticbeanstalk.com'}
+
+provider:
+  name:                aws
+  runtime:             nodejs10.x
+  stage:               ${env:STAGE, opt:stage, 'cont'}
+  region:              eu-west-1
+  domain:              ${env:DOMAIN, opt:domain, 'welcome.dewire.com'}
+  deploymentBucket:
+    name: ${cf:welcome-resources-${self:provider.stage}.DeploymentBucket, 'lambdas.${self:provider.stage}.${self:provider.domain}'}
+  stackTags:
+    STACK:  "${self:service}"
+    REGION: "${self:provider.region}"
+    COMMIT: "${opt:commit}"
+
+functions:
+  echo:
+    handler:           echoHandler.echo
+    events:
+      - http:
+          method:      get
+          path:        echo
+          cors:        true
+resources:
+  - Outputs:
+      CustomDomainName:
+        Value:
+          Ref: CustomDomainName
+        Export:
+          Name: CustomDomainName-${self:provider.stage}
+  - ${file(./serverless.proxy_methods.yml)}
+  - Conditions:
+      hasCustomDomain:
+        Fn::Or:
+          - Fn::Equals:
+            - ${self:provider.stage}
+            - 'prod'
+          - Fn::Equals:
+            - ${self:provider.stage}
+            - 'dev'
+          - Fn::Equals:
+            - ${self:provider.stage}
+            - 'cont'
+
+  - Resources:
+      # TODO move this to resources. Microservices depends on this being deployed.
+      CustomDomainName:
+        Type: AWS::ApiGateway::DomainName
+        Condition: hasCustomDomain
+        Properties:
+            CertificateArn: "${file(./serverless.env.yml):${self:provider.stage}.domain.certificate}"
+            DomainName: "${file(./serverless.env.yml):${self:provider.stage}.domain.domain}"
+
+      CustomDomainMapping:
+          Type: AWS::ApiGateway::BasePathMapping
+          Properties:
+              BasePath: 'api'
+              DomainName:
+                  Ref: CustomDomainName
+              RestApiId:
+                  Ref: ApiGatewayRestApi
+              Stage: "${self:provider.stage}"
+          DependsOn: ApiGatewayRestApi

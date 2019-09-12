@@ -1,0 +1,16 @@
+export const {
+  AWS_OFFLINE,
+  MUNICIPALITY_TABLE_NAME,
+  AREA_TABLE_NAME,
+  POPULATE_MOCK_DATA,
+  ABOUT_MUNICIPALITY_TABLE_NAME,
+  ABOUT_SERVICE_TABLE_NAME,
+  AREA_OVERVIEW_TABLE_NAME,
+  USER_POOL_ID,
+  BUCKET,
+  USER_GROUP_TABLE_NAME,
+} = process.env;
+
+export const globalUpdateOptions = {
+  // allowEmptyArray: true,
+};

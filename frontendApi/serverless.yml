@@ -1,0 +1,204 @@
+service:
+  name:                welcome-backend-frontendApi
+
+plugins:
+  - serverless-webpack
+  - serverless-offline
+  - serverless-dynamodb-local
+
+custom:
+  serverless-offline:
+    port:                         4000
+  webpack: ../webpack.config.js
+  AREA_TABLE_NAME:                ${self:provider.stage}-Area
+  MUNICIPALITY_TABLE_NAME:        ${self:provider.stage}-Municipality
+  ABOUT_MUNICIPALITY_TABLE_NAME:  ${self:provider.stage}-About-Municipality
+  AREA_OVERVIEW_TABLE_NAME:       ${self:provider.stage}-Area-Overview
+  ABOUT_SERVICE_TABLE_NAME:       ${self:provider.stage}-About-Service
+  USER_GROUP_TABLE_NAME:          ${self:provider.stage}-User-Group
+  fileStoreBucket:                ${self:provider.stage}-welcome-file-storage
+  CORS_CONFIG:
+    origin: '*'
+    headers:
+      - Content-Type
+      - X-Amz-Date
+      - Authorization
+      - X-Api-Key
+      - X-Amz-Security-Token
+      - X-Amz-User-Agent
+      - cache-control
+      - expires
+      - pragma
+    allowCredentials: true
+
+provider:
+  name:                aws
+  runtime:             nodejs10.x
+  stage:               ${env:STAGE, opt:stage, 'cont'}
+  region:              eu-west-1
+  domain:              ${env:DOMAIN, opt:domain, 'welcome.dewire.com'}
+  environment:
+    BOOLI_API_KEY:                  ${file(../serverless.env.yml):booli.API_KEY}
+    BOOLI_CALLER_ID:                ${file(../serverless.env.yml):booli.CALLER_ID}
+    AREA_TABLE_NAME:                ${self:custom.AREA_TABLE_NAME}
+    MUNICIPALITY_TABLE_NAME:        ${self:custom.MUNICIPALITY_TABLE_NAME}
+    ABOUT_MUNICIPALITY_TABLE_NAME:  ${self:custom.ABOUT_MUNICIPALITY_TABLE_NAME}
+    AREA_OVERVIEW_TABLE_NAME:       ${self:custom.AREA_OVERVIEW_TABLE_NAME}
+    ABOUT_SERVICE_TABLE_NAME:       ${self:custom.ABOUT_SERVICE_TABLE_NAME}
+    USER_GROUP_TABLE_NAME:          ${self:custom.USER_GROUP_TABLE_NAME}
+    POPULATE_MOCK_DATA: false
+  deploymentBucket:
+    name: lambdas.${self:provider.stage}.${self:provider.domain}
+  stackTags:
+    STACK:  "${self:service}"
+    REGION: "${self:provider.region}"
+    COMMIT: "${opt:commit}"
+
+functions:
+  getStartPageData:
+    handler:           startPageHandler.getStartPageData
+    events:
+      - http:
+          method:      get
+          path:        lang/{lang}/municipality/{municipality}/startpage
+          cors:        ${self:custom.CORS_CONFIG}
+  getAreas:
+    handler:           areaHandler.getAreas
+    events:
+      - http:
+          method:      get
+          path:        areas/municipalityid/{municipalityId}
+          cors:        ${self:custom.CORS_CONFIG}
+  getAreasByMunicipalityName:
+    handler:           areaHandler.getAreasByMunicipalityName
+    events:
+      - http:
+          method:      get
+          path:        areas/municipality/{municipality}
+          cors:        ${self:custom.CORS_CONFIG}
+  getAreasExcludeByMunicipalityId:
+    handler:           areaHandler.getAreasExcludeByMunicipalityId
+    events:
+      - http:
+          method:      get
+          path:        areas/exclude/municipalityid/{municipalityId}
+          cors:        ${self:custom.CORS_CONFIG}
+  getAboutMunicipality:
+    handler:           aboutMunicipalityHandler.getAboutMunicipality
+    events:
+      - http:
+          method:      get
+          path:        about-municipality/municipality/{municipality}
+          cors:        ${self:custom.CORS_CONFIG}
+  getAboutService:
+    handler:           aboutServiceHandler.getAboutServiceData
+    events:
+      - http:
+          method:      get
+          path:        about-service
+          cors:        ${self:custom.CORS_CONFIG}
+  getAreaOverview:
+    handler:           areaOverviewHandler.getAreaOverview
+    events:
+      - http:
+          method:      get
+          path:        area-overview/areaid/{areaId}
+          cors:        ${self:custom.CORS_CONFIG}
+  booliListings:
+    handler:           booliHandler.listings
+    timeout:           15
+    events:
+      - http:
+          method:      get
+          path:        booli/listings
+          cors:        ${self:custom.CORS_CONFIG}
+
+  booliSold:
+    handler:           booliHandler.sold
+    timeout:           15
+    events:
+      - http:
+          method:       post
+          path:         booli/sold
+          cors:         ${self:custom.CORS_CONFIG}
+  getAllMunicipalities:
+    handler:           municipalityHandler.getAllData
+    events:
+      - http:
+          method:      get
+          path:        municipality/all
+          cors:        ${self:custom.CORS_CONFIG}
+  getMunicipalityById:
+    handler:           municipalityHandler.getDataById
+    events:
+      - http:
+          method:      get
+          path:        municipality/id/{municipalityId}
+          cors:        ${self:custom.CORS_CONFIG}
+  putError:
+    handler:           errorHandler.file
+    events:
+      - http:
+          method:      put
+          path:        aws/error
+          cors:        ${self:custom.CORS_CONFIG}
+
+resources:
+  -
+    Resources:
+      CustomDomainMapping:
+          Type: AWS::ApiGateway::BasePathMapping
+          Properties:
+              BasePath: 'front'
+              DomainName: ${cf:welcome-backend-${self:provider.stage}.CustomDomainName}
+              RestApiId:
+                  Ref: ApiGatewayRestApi
+              Stage: "${self:provider.stage}"
+          DependsOn: ApiGatewayRestApi
+
+      ApiGatewayMethodBooliSoldPost:
+        Properties:
+          RequestParameters:
+            method.request.querystring.digest: true
+          Integration:
+            CacheKeyParameters:
+              - method.request.querystring.digest
+            PassthroughBehavior: WHEN_NO_MATCH
+
+      DynamoDBIamPolicy:
+        Type: AWS::IAM::Policy
+        Properties:
+          PolicyName: frontend-lambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:GetItem
+                  - dynamodb:DescribeTable
+                Resource:
+                  - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:custom.AREA_TABLE_NAME}*
+                  - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:custom.MUNICIPALITY_TABLE_NAME}*
+                  - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:custom.ABOUT_MUNICIPALITY_TABLE_NAME}*
+                  - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:custom.ABOUT_SERVICE_TABLE_NAME}*
+                  - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:custom.AREA_OVERVIEW_TABLE_NAME}*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                Resource:
+                  - arn:aws:logs:${self:provider.region}:*:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  - dynamodb:DescribeTable
+                  - dynamodb:GetItem
+                  # - "*" # TODO restrict to onboarding role
+                Resource:
+                  - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:custom.USER_GROUP_TABLE_NAME}*
+          Roles:
+            - Ref: IamRoleLambdaExecution

@@ -1,0 +1,265 @@
+service:
+  name:                welcome-backend-dbApi
+
+plugins:
+  - serverless-webpack
+  - serverless-offline
+
+custom:
+  serverless-offline:
+    port:                         4000
+  webpack: ../webpack.config.js
+  AREA_TABLE_NAME:                ${self:provider.stage}-Area
+  MUNICIPALITY_TABLE_NAME:        ${self:provider.stage}-Municipality
+  ABOUT_MUNICIPALITY_TABLE_NAME:  ${self:provider.stage}-About-Municipality
+  AREA_OVERVIEW_TABLE_NAME:       ${self:provider.stage}-Area-Overview
+  ABOUT_SERVICE_TABLE_NAME:       ${self:provider.stage}-About-Service
+  USER_GROUP_TABLE_NAME:          ${self:provider.stage}-User-Group
+  UserPool:                       ${cf:welcome-resources-${self:provider.stage}.UserPool}
+  UserPoolArn:                    arn:aws:cognito-idp:eu-west-1:318366659664:userpool/${self:custom.UserPool}
+  CORS_CONFIG:
+    origin: '*'
+    headers:
+      - Content-Type
+      - X-Amz-Date
+      - Authorization
+      - X-Api-Key
+      - X-Amz-Security-Token
+      - X-Amz-User-Agent
+      - cache-control
+      - expires
+      - pragma
+    allowCredentials: true
+
+provider:
+  name:                aws
+  runtime:             nodejs10.x
+  stage:               ${env:STAGE, opt:stage, 'cont'}
+  region:              eu-west-1
+  domain:              ${env:DOMAIN, opt:domain, 'welcome.dewire.com'}
+  environment:
+    AREA_TABLE_NAME:                ${self:custom.AREA_TABLE_NAME}
+    MUNICIPALITY_TABLE_NAME:        ${self:custom.MUNICIPALITY_TABLE_NAME}
+    ABOUT_MUNICIPALITY_TABLE_NAME:  ${self:custom.ABOUT_MUNICIPALITY_TABLE_NAME}
+    AREA_OVERVIEW_TABLE_NAME:       ${self:custom.AREA_OVERVIEW_TABLE_NAME}
+    ABOUT_SERVICE_TABLE_NAME:       ${self:custom.ABOUT_SERVICE_TABLE_NAME}
+    USER_GROUP_TABLE_NAME:          ${self:custom.USER_GROUP_TABLE_NAME}
+    POPULATE_MOCK_DATA: false
+  deploymentBucket:
+    name: lambdas.${self:provider.stage}.${self:provider.domain}
+  stackTags:
+    STACK:  "${self:service}"
+    REGION: "${self:provider.region}"
+    COMMIT: "${opt:commit}"
+
+functions:
+  municipalityDbApi:
+    handler:            MunicipalityHandler.CRUD
+    events:
+      - http:
+          method:       post
+          path:         /municipality
+          cors:         ${self:custom.CORS_CONFIG}
+          authorizer:
+            name: authorizer
+            arn: ${self:custom.UserPoolArn}
+      - http:
+          method:       ANY
+          path:         /municipality/{municipality}
+          cors:         ${self:custom.CORS_CONFIG}
+          authorizer:
+            name: authorizer
+            arn: ${self:custom.UserPoolArn}
+    environment:
+      ENC_PASS:                 ${opt:encPass, env:ENC_PASS}
+      MUNICIPALITY_TABLE_NAME:  ${self:custom.MUNICIPALITY_TABLE_NAME}
+      USER_GROUP_TABLE_NAME:    ${self:custom.USER_GROUP_TABLE_NAME}
+
+  municipalityAllDbApi:
+    handler:            MunicipalityHandler.getAll
+    events:
+      - http:
+          method:       get
+          path:         /municipality
+          cors:         ${self:custom.CORS_CONFIG}
+          authorizer:
+            name: authorizer
+            arn: ${self:custom.UserPoolArn}
+    environment:
+      MUNICIPALITY_TABLE_NAME:  ${self:custom.MUNICIPALITY_TABLE_NAME}
+
+  mapCredentialsDbApi:
+    handler:            MunicipalityHandler.updateMapCredentials
+    events:
+      - http:
+          method:       put
+          path:         /municipality/{municipality}/mapcredentials
+          cors:         ${self:custom.CORS_CONFIG}
+          authorizer:
+            name: authorizer
+            arn: ${self:custom.UserPoolArn}
+    environment:
+      ENC_PASS:                 ${opt:encPass, env:ENC_PASS}
+      MUNICIPALITY_TABLE_NAME:  ${self:custom.MUNICIPALITY_TABLE_NAME}
+
+  aboutMunicipalityDbApi:
+    handler:            aboutMunicipalityHandler.CRUD
+    events:
+      - http:
+          method:       post
+          path:         /aboutmunicipality
+          cors:         ${self:custom.CORS_CONFIG}
+          authorizer:
+            name: authorizer
+            arn: ${self:custom.UserPoolArn}
+      - http:
+          method:       ANY
+          path:         /aboutmunicipality/{municipality}
+          cors:         ${self:custom.CORS_CONFIG}
+          authorizer:
+            name: authorizer
+            arn: ${self:custom.UserPoolArn}
+    environment:
+      ABOUT_MUNICIPALITY_TABLE_NAME:  ${self:custom.ABOUT_MUNICIPALITY_TABLE_NAME}
+
+  areaDbApi:
+    handler:            areaHandler.CRUD
+    events:
+      - http:
+          method:       ANY
+          path:         /area/{municipalityId}
+          cors:         ${self:custom.CORS_CONFIG}
+          authorizer:
+            name: authorizer
+            arn: ${self:custom.UserPoolArn}
+    environment:
+      AREA_TABLE_NAME:  ${self:custom.AREA_TABLE_NAME}
+      AREA_OVERVIEW_TABLE_NAME:  ${self:custom.AREA_OVERVIEW_TABLE_NAME}
+
+  areaByMunicipalityName:
+    handler:            areaHandler.municipalityCrud
+    events:
+      - http:
+          method:       GET
+          path:         /area/municipality/{municipality}
+          cors:         ${self:custom.CORS_CONFIG}
+          authorizer:
+            name: authorizer
+            arn: ${self:custom.UserPoolArn}
+      - http:
+          method:       DELETE
+          path:         /area/municipality/{municipality}
+          cors:         ${self:custom.CORS_CONFIG}
+          authorizer:
+            name: authorizer
+            arn: ${self:custom.UserPoolArn}
+    environment:
+      # ENC_PASS:                 ${opt:encPass, env:ENC_PASS}
+      AREA_TABLE_NAME:  ${self:custom.AREA_TABLE_NAME}
+      AREA_OVERVIEW_TABLE_NAME:  ${self:custom.AREA_OVERVIEW_TABLE_NAME}
+
+  areaByMunicipalityId:
+    handler:            areaHandler.municipalityCrud
+    events:
+      - http:
+          method:       GET
+          path:         /area/municipalityid/{municipalityId}
+          cors:         ${self:custom.CORS_CONFIG}
+          authorizer:
+            name: authorizer
+            arn: ${self:custom.UserPoolArn}
+    environment:
+      AREA_TABLE_NAME:  ${self:custom.AREA_TABLE_NAME}
+      AREA_OVERVIEW_TABLE_NAME:  ${self:custom.AREA_OVERVIEW_TABLE_NAME}
+
+  getAreaOverview:
+    handler:           areaOverviewHandler.getAreaOverview
+    events:
+      - http:
+          method:      get
+          path:        area-overview/areaid/{areaId}
+          cors:        ${self:custom.CORS_CONFIG}
+          authorizer:
+            name: authorizer
+            arn: ${self:custom.UserPoolArn}
+
+  UserGroupDbApi:
+    handler:            UserGroupHandler.CRUD
+    events:
+      - http:
+          method:       ANY
+          path:         /usergroup/{municipality}
+          cors:         ${self:custom.CORS_CONFIG}
+          authorizer:
+            name: authorizer
+            arn: ${self:custom.UserPoolArn}
+    environment:
+      USER_GROUP_TABLE_NAME:  ${self:custom.USER_GROUP_TABLE_NAME}
+
+  getAboutService:
+    handler:           aboutServiceHandler.getAboutServiceData
+    events:
+      - http:
+          method:      get
+          path:        about-service
+          cors:        ${self:custom.CORS_CONFIG}
+          authorizer:
+            name: authorizer
+            arn: ${self:custom.UserPoolArn}
+
+resources:
+  -
+    Resources:
+      CustomDomainMapping:
+          Type: AWS::ApiGateway::BasePathMapping
+          Properties:
+              BasePath: 'db'
+              DomainName: ${cf:welcome-backend-${self:provider.stage}.CustomDomainName}
+              RestApiId:
+                  Ref: ApiGatewayRestApi
+              Stage: "${self:provider.stage}"
+          DependsOn: ApiGatewayRestApi
+
+
+      DynamoDBIamPolicy:
+        Type: AWS::IAM::Policy
+        Properties:
+          PolicyName: lambda-dynamodb
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:CreateTable
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:DescribeTable
+                  - dynamodb:DeleteItem
+                Resource:
+                  - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:custom.AREA_TABLE_NAME}*
+                  - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:custom.MUNICIPALITY_TABLE_NAME}*
+                  - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:custom.ABOUT_MUNICIPALITY_TABLE_NAME}*
+                  - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:custom.ABOUT_SERVICE_TABLE_NAME}*
+                  - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:custom.AREA_OVERVIEW_TABLE_NAME}*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                Resource:
+                  - arn:aws:logs:${self:provider.region}:*:log-group:*:log-stream:*
+              - Effect: Allow
+                Action:
+                  # - dynamodb:DescribeTable
+                  # - dynamodb:GetItem
+                  - dynamodb:* # TODO restrict to onboarding role
+                Resource:
+                  - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:custom.USER_GROUP_TABLE_NAME}*
+          Roles:
+            - Ref: IamRoleLambdaExecution

@@ -1,0 +1,28 @@
+{
+  "plugins": [
+    "jest"
+  ],
+  "extends": [
+    "airbnb",
+    "plugin:jest/recommended"
+  ],
+  "rules": {
+    "no-restricted-syntax": ["error", "ForInStatement", "LabeledStatement", "WithStatement"],
+    "import/prefer-default-export": "off",
+    "no-console":0
+  },
+  "env": {
+    "jest/globals": true
+  },
+  "settings": {
+    "import/resolver": {
+      "babel-module": {}
+    }
+  },
+  "overrides": {
+    "files": [ "api/*.test.js", "libs/*.test.js", "admin/*.test.js" ],
+    "rules": {
+      "global-require": 0
+    }
+  }
+}
